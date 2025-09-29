@@ -32,7 +32,7 @@ export default function SlotCard({ slot, onAddTrainee, onRemoveTrainee, onDelete
       onAddTrainee(slot.id, {
         name: newTrainee.name.trim(),
         phone: newTrainee.phone.trim(),
-        email: newTrainee.email.trim() || undefined
+        email: newTrainee.email.trim() //|| undefined
       });
       setNewTrainee({ name: '', phone: '', email: '' });
       setShowAddForm(false);
