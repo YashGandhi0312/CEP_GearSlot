@@ -1,11 +1,11 @@
-import React from 'react';
 import { Car, LogIn } from 'lucide-react';
 
 interface HomePageProps {
-  onLogin: () => void;
+  onShowLogin: () => void;
+  onShowRegister: () => void;
 }
 
-export default function HomePage({ onLogin }: HomePageProps) {
+export default function HomePage({ onShowLogin }: HomePageProps) {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-black shadow-sm border-b border-gray-200">
@@ -23,7 +23,7 @@ export default function HomePage({ onLogin }: HomePageProps) {
               </div>
             </div>
             <button
-              onClick={onLogin}
+              onClick={onShowLogin}
               className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
             >
               <LogIn className="w-4 h-4 mr-2" />
@@ -44,7 +44,7 @@ export default function HomePage({ onLogin }: HomePageProps) {
           <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
             <div className="rounded-md shadow">
               <button
-                onClick={onLogin}
+                onClick={onShowLogin}
                 className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10"
               >
                 Get Started

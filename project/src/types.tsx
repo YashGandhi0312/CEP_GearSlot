@@ -20,3 +20,8 @@ export interface BatchFilter {
   availability: 'all' | 'available' | 'full';
   day?: number;
 }
+
+export interface User {
+  email: string;
+  password: string;
+}
