@@ -2,10 +2,14 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const SlotSchema = new Schema({
-  dayOfWeek: {
-    type: Number, // 0 = Sunday, 1 = Monday, etc.
+  // --- CHANGES START HERE ---
+  // We replace dayOfWeek with a specific date
+  date: {
+    type: Date, // Stores the full date (e.g., 2025-10-26T00:00:00.000Z)
     required: true,
   },
+  // --- CHANGES END HERE ---
+  
   startTime: {
     type: String, // e.g., "09:00"
     required: true,
@@ -18,23 +22,21 @@ const SlotSchema = new Schema({
     type: Number,
     default: 2,
   },
-
-  // This tells Mongoose that 'trainees' will be an array of
-  // IDs that point to documents in the 'Trainee' collection.
+  
+  // Trainee References remain the same
   trainees: [{
     type: Schema.Types.ObjectId,
     ref: 'Trainee'
   }],
-
+  
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
 
-// This creates the 30-day auto-delete "Time-To-Live" index
+// The 30-day auto-delete index needs to be updated to use the new 'date' field
 const THIRTY_DAYS_IN_SECONDS = 30 * 24 * 60 * 60;
-SlotSchema.index({ createdAt: 1 }, { expireAfterSeconds: THIRTY_DAYS_IN_SECONDS });
-
+SlotSchema.index({ date: 1 }, { expireAfterSeconds: THIRTY_DAYS_IN_SECONDS }); // <-- UPDATED INDEX
 
 module.exports = mongoose.model('Slot', SlotSchema);

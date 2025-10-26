@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import HomePage from './components/HomePage';
 import LoginPage from './components/LoginPage';
-import { TimeSlot, Trainee, BatchFilter, User } from './types';
+import { TimeSlot, Trainee, BatchFilter } from './types/types.ts';
 import SlotCard from './components/SlotCard';
 import CreateSlotModal from './components/CreateSlotModal';
 import FilterBar from './components/FilterBar';
@@ -9,6 +9,8 @@ import StatsCard from './components/StatsCard';
 import { Plus, Car, LogOut, Users } from 'lucide-react';
 import { Routes, Route, Link } from 'react-router-dom';
 import TraineePage from './components/TraineePage';
+import { getDay, format, formatISO } from 'date-fns';
+import DayPicker from './components/DayPicker';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -19,6 +21,8 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [allTrainees, setAllTrainees] = useState<Trainee[]>([]);
+  const [selectedDate, setSelectedDate] = useState(new Date()); // Defaults to today
+  const [slotsUpdated, setSlotsUpdated] = useState(0);
 
 const handleLogin = async (email: string, password: string) => {
   try {
@@ -91,39 +95,41 @@ const handleLogin = async (email: string, password: string) => {
   }, []); // The empty array [] means it runs only once
 
 useEffect(() => {
-  if (isLoggedIn) {
-    const fetchSlots = async () => {
-      try {
-        const response = await fetch('http://localhost:5000/api/slots');
-        if (response.ok) {
+    if (isLoggedIn) {
+      const fetchSlots = async () => {
+        try {
+          const formattedDate = formatISO(selectedDate, { representation: 'date' });
+          
+          const response = await fetch(`http://localhost:5000/api/slots?date=${formattedDate}`, {
+            credentials: 'include',
+          });
+          
+          if (response.ok) {
             const data = await response.json();
             const formattedSlots = data.map((slot: any) => ({
               ...slot,
-              id: slot._id, // Add id to the slot
-              // --- THIS IS THE FIX ---
-              // Also add id to each trainee *inside* the slot
+              id: slot._id,
               trainees: slot.trainees.map((t: any) => ({ ...t, id: t._id }))
             }));
             setSlots(formattedSlots);
-        } else {
-          console.error('Failed to fetch slots');
+          } else {
+            console.error('Failed to fetch slots');
+          }
+        } catch (error) {
+          console.error('Error fetching slots:', error);
         }
-      } catch (error) {
-        console.error('Error fetching slots:', error);
-      }
-    };
+      };
 
-    const fetchTrainees = async () => {
+      const fetchTrainees = async () => {
         try {
           const response = await fetch('http://localhost:5000/api/trainees', {
-            credentials: 'include', // Important for auth
+            credentials: 'include',
           });
           if (response.ok) {
             const data = await response.json();
-            // --- FIX FOR TRAINEE ID ---
             const formattedTrainees = data.map((trainee: any) => ({
               ...trainee,
-              id: trainee._id // Add the 'id' prop here too
+              id: trainee._id
             }));
             setAllTrainees(formattedTrainees);
           } else {
@@ -134,46 +140,40 @@ useEffect(() => {
         }
       };
 
-
-    fetchSlots();
-    fetchTrainees();
-  }
-}, [isLoggedIn]); // It runs when isLoggedIn changes to true
+      fetchSlots();
+      fetchTrainees();
+    }
+  }, [isLoggedIn, selectedDate, slotsUpdated]); // ADD slotsUpdated here
   
   const handleCreateSlot = async (startTime: string, endTime: string, dayOfWeek: number) => {
-  try {
-    const response = await fetch('http://localhost:5000/api/slots', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        dayOfWeek,
-        startTime,
-        endTime,
-        maxTrainees: 2 // Or whatever default you want
-      }),
-    });
-
-    if (response.status === 201) {
-      const newSlotData = await response.json();
-      const newSlot = { ...newSlotData, id: newSlotData._id };
-      // Add the new slot to our local state so the UI updates instantly
-      setSlots(prev => [...prev, newSlot].sort((a, b) => {
-        if (a.dayOfWeek !== b.dayOfWeek) {
-          return a.dayOfWeek - b.dayOfWeek;
-        }
-        return a.startTime.localeCompare(b.startTime);
-      }));
-    } else {
-      console.error('Failed to create slot');
-      alert('Failed to create slot');
+    try {
+      const date = formatISO(selectedDate, { representation: 'date' }); 
+      
+      const response = await fetch('http://localhost:5000/api/slots', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          date, 
+          startTime,
+          endTime,
+          maxTrainees: 2 
+        }),
+      });
+      
+      if (response.status === 201) {
+        // SUCCESS: Force the main useEffect to run again to fetch the new list
+        setSlotsUpdated(prev => prev + 1); 
+      } else {
+        const data = await response.json();
+        alert(`Failed to create slot: ${data.msg}`);
+      }
+    } catch (error) {
+      console.error('Error creating slot:', error);
     }
-  } catch (error) {
-    console.error('Error creating slot:', error);
-  }
-};
-
+  };
   // --- ADD THIS NEW FUNCTION ---
   const handleAddTrainee = async (slotId: string, traineeId: string) => {
     try {
@@ -265,7 +265,7 @@ useEffect(() => {
   // ... (after handleDeleteSlot)
 
 // --- ADD THIS FUNCTION ---
-const handleAddNewTrainee = async (newTrainee: Omit<Trainee, 'id' | 'createdAt'>) => {
+const handleAddNewTrainee = async (newTrainee: { name: string, phone: string, email: string }) => {
   try {
     const response = await fetch('http://localhost:5000/api/trainees', {
       method: 'POST',
@@ -308,13 +308,16 @@ const handleDeleteTrainee = async (traineeId: string) => {
   }
 };
 
-    const filteredSlots = useMemo(() => {
-    return slots.filter(slot => {
-      if (filter.day !== undefined && slot.dayOfWeek !== filter.day) {
-        return false;
-      }
-
+const filteredSlots = useMemo(() => {
+    // Backend handles date filtering, so we only need to sort by time 
+    // and apply local search/availability filters.
+    const slotsToFilter = [...slots].sort((a: any, b: any) => 
+      a.startTime.localeCompare(b.startTime)
+    );
+    
+    return slotsToFilter.filter(slot => {
       const availableSpots = slot.maxTrainees - slot.trainees.length;
+
       if (filter.availability === 'available' && availableSpots === 0) {
         return false;
       }
@@ -337,6 +340,7 @@ const handleDeleteTrainee = async (traineeId: string) => {
       return true;
     });
   }, [slots, filter, searchTerm]);
+
 
   const stats = useMemo(() => {
     const totalSlots = slots.length;
@@ -365,7 +369,7 @@ const handleDeleteTrainee = async (traineeId: string) => {
       <header className="bg-black shadow-sm border-b border-gray-200">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
+            <Link to="/" className="flex items-center hover:opacity-80 transition-opacity"> 
               <div className="p-2 bg-blue-600 rounded-lg">
                 <Car className="w-8 h-8 text-blue-100" />
               </div>
@@ -375,7 +379,7 @@ const handleDeleteTrainee = async (traineeId: string) => {
                 </h1>
                 <p className="text-sm text-white">Slot Management System</p>
               </div>
-            </div>
+            </Link>
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setShowCreateModal(true)}
@@ -406,25 +410,49 @@ const handleDeleteTrainee = async (traineeId: string) => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Routes>
-          {/* --- Route 1: The Main Dashboard --- */}
           <Route path="/" element={
             <>
               <StatsCard {...stats} />
-              <FilterBar filter={filter} onFilterChange={setFilter} searchTerm={searchTerm} onSearchChange={setSearchTerm} />
-              <div className="space-y-4 mt-6">
-                {filteredSlots.map(slot => (
-                  <SlotCard
-                    key={slot.id}
-                    slot={slot}
-                    allTrainees={allTrainees} // <-- 1. ADD THIS PROP
-                    onAddTrainee={handleAddTrainee} // <-- 2. FIX THIS (remove arrow func)
-                    onRemoveTrainee={handleRemoveTrainee}
-                    onDeleteSlot={handleDeleteSlot}
+              {/* We are no longer using the old FilterBar */}
+
+              {/* --- NEW 2-COLUMN LAYOUT --- */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-6">
+
+                {/* --- 1. LEFT COLUMN (Slots) --- */}
+                <div className="md:col-span-2 space-y-4">
+                  <h2 className="text-xl font-semibold">
+                    Slots for: {format(selectedDate, 'EEEE, MMMM do, yyyy')}
+                  </h2>
+                  {filteredSlots.length > 0 ? (
+                    filteredSlots.map(slot => (
+                      <SlotCard
+                        key={slot.id}
+                        slot={slot}
+                        allTrainees={allTrainees}
+                        onAddTrainee={handleAddTrainee}
+                        onRemoveTrainee={handleRemoveTrainee}
+                        onDeleteSlot={handleDeleteSlot}
+                      />
+                    ))
+                  ) : (
+                    <div className="bg-white p-6 rounded-lg shadow-sm text-center text-gray-500">
+                      No slots available for this day.
+                    </div>
+                  )}
+                </div>
+
+                {/* --- 2. RIGHT COLUMN (Calendar) --- */}
+                <div className="md:col-span-1">
+                  <DayPicker 
+                    selectedDate={selectedDate}
+                    onDateChange={setSelectedDate}
                   />
-                ))}
+                </div>
               </div>
+              {/* --- END OF NEW LAYOUT --- */}
             </>
           } />
+
 
           {/* --- Route 2: The New Trainees Page --- */}
           <Route path="/trainees" element={
@@ -440,6 +468,7 @@ const handleDeleteTrainee = async (traineeId: string) => {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreateSlot={handleCreateSlot}
+        selectedDate={selectedDate} // <-- ADD THIS PROP
       />
 
     </div>

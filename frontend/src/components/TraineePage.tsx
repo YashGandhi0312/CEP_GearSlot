@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import { Trainee } from '../types';
-import { UserPlus, Trash2, User } from 'lucide-react';
+import { UserPlus, Trash2, User, ChevronLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 // Define the props this page will receive
+// Define the props this page will receive
+
 interface TraineePageProps {
-  trainees: Trainee[]; // The master list from App.tsx
-  onAddTrainee: (newTrainee: Omit<Trainee, 'id' | 'createdAt'>) => void;
+  trainees: Trainee[]; // This is the clean interface from your types file
+  onAddTrainee: (newTrainee: { name: string, phone: string, email: string }) => void;
   onDeleteTrainee: (traineeId: string) => void;
 }
 
 export default function TraineePage({ trainees, onAddTrainee, onDeleteTrainee }: TraineePageProps) {
   // State for the "Add New Trainee" form
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -81,9 +85,21 @@ export default function TraineePage({ trainees, onAddTrainee, onDeleteTrainee }:
       </div>
 
       {/* --- 2. Trainee List --- */}
+      {/* --- 2. Trainee List --- */}
       <div className="md:col-span-2">
         <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4">Current Trainees ({trainees.length})</h3>
+          {/* --- ADDED BACK BUTTON --- */}
+          <div className="flex items-center mb-4">
+            <button
+              onClick={() => navigate('/')}
+              className="mr-3 p-1 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              title="Go back to Dashboard"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <h3 className="text-xl font-semibold">Current Trainees ({trainees.length})</h3>
+          </div>
+          {/* --- END ADDED BACK BUTTON --- */}
           <div className="space-y-3 max-h-[600px] overflow-y-auto">
             {trainees.length > 0 ? (
               trainees.map(trainee => (

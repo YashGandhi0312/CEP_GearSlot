@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { TimeSlot, Trainee } from '../types';
+import { TimeSlot, Trainee } from '../types/types.ts';
 import { Clock, User, X, Calendar, UserPlus } from 'lucide-react';
+import { format } from 'date-fns';
+import { parseISO } from 'date-fns';
 
 interface SlotCardProps {
   slot: TimeSlot;
@@ -9,10 +11,6 @@ interface SlotCardProps {
   onAddTrainee: (slotId: string, traineeId: string) => void; // <-- Prop definition updated
   onRemoveTrainee: (slotId: string, traineeId: string) => void;
 }
-
-const getDayName = (dayIndex: number) => {
-  return new Date(0, 0, dayIndex).toLocaleDateString('en-US', { weekday: 'long' });
-};
 
 export default function SlotCard({
   slot,
@@ -53,19 +51,20 @@ export default function SlotCard({
   return (
     <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
       <div className="p-4">
-        {/* Header: Time, Day, and Delete Button */}
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center space-x-2">
-            <Clock className="w-5 h-5 text-blue-600" />
-            <span className="font-bold text-lg text-gray-800">
-              {slot.startTime} - {slot.endTime}
-            </span>
-            <span className="text-gray-500">|</span>
-            <Calendar className="w-5 h-5 text-gray-500" />
-            <span className="text-md font-medium text-gray-600">
-              {getDayName(slot.dayOfWeek)}
-            </span>
-          </div>
+            {/* Header: Time, Day, and Delete Button */}
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-5 h-5 text-blue-600" />
+                <span className="font-bold text-lg text-gray-800">
+                  {slot.startTime} - {slot.endTime}
+                </span>
+                <span className="text-gray-500">|</span>
+                <Calendar className="w-5 h-5 text-gray-500" />
+                <span className="text-md font-medium text-gray-600">
+                  {format(parseISO(slot.date), 'EEEE, MMMM do, yyyy')} {/* <-- FIXED DATE DISPLAY */}
+                </span>
+              </div>
+              {/* ... (rest of the header) ... */}
           <button
             onClick={() => onDeleteSlot(slot.id)}
             className="text-gray-400 hover:text-red-500 transition-colors"

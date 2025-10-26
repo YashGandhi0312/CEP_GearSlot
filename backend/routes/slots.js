@@ -2,17 +2,28 @@ const express = require('express');
 const router = express.Router();
 const Slot = require('../models/Slot');
 const Trainee = require('../models/Trainee');
+const { startOfDay, endOfDay } = require('date-fns'); // <-- ADD THIS LINE
 
 // @route   GET /api/slots
 // @desc    Get all slots (and populate trainee info)
+// @route   GET /api/slots
+// @desc    Get slots filtered by date (Query parameter: ?date=YYYY-MM-DD)
 router.get('/', async (req, res) => {
   try {
-    // Find all slots, sort them, and use .populate()
-    // .populate() is key: It fetches the full trainee details 
-    // (name, phone) instead of just their ID.
-    const slots = await Slot.find()
-      .populate('trainees') // <-- This is the magic
-      .sort({ dayOfWeek: 1, startTime: 1 });
+    const { date } = req.query; // Get the date from the query string
+
+    const filter = {};
+    if (date) {
+        // If a date is provided, find all slots between the start and end of that day
+        const dayStart = startOfDay(new Date(date));
+        const dayEnd = endOfDay(new Date(date));
+        
+        filter.date = { $gte: dayStart, $lte: dayEnd }; // <-- NEW FILTER
+    }
+
+    const slots = await Slot.find(filter) // <-- USE FILTER
+      .populate('trainees')
+      .sort({ date: 1, startTime: 1 }); // <-- SORT BY NEW 'date' FIELD
       
     res.json(slots);
   } catch (err) {
@@ -24,13 +35,13 @@ router.get('/', async (req, res) => {
 // @route   POST /api/slots
 // @desc    Create a new slot
 router.post('/', async (req, res) => {
-  const { dayOfWeek, startTime, endTime, maxTrainees } = req.body;
+  const { date, startTime, endTime, maxTrainees } = req.body; // <-- CHANGE: Removed dayOfWeek, added 'date'
   try {
     const newSlot = new Slot({
-      dayOfWeek,
+      date: new Date(date), // <-- CHANGE: Convert string to Date object
       startTime,
       endTime,
-      maxTrainees, // <-- The typo is fixed here
+      maxTrainees,
     });
 
     const slot = await newSlot.save();
