@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
-
+const cookieParser = require('cookie-parser');
 // --- 1. Initial Setup ---
 // Load environment variables from .env file
 dotenv.config(); 
@@ -14,24 +14,26 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // --- 3. Middleware ---
-app.use(cors()); // Allow cross-origin requests (from our frontend)
+
+// THIS IS THE FIX:
+// Using the default cors() setup allows all origins.
+// This is the easiest way to solve preflight request errors.
+// It MUST be placed before the API routes.
+app.use(cors({
+  origin: 'http://localhost:5173', // Must be the exact origin
+  credentials: true               // This allows cookies
+}));
+
 app.use(express.json()); // Parse incoming JSON requests
+app.use(cookieParser());
 
 // --- 4. API Routes ---
-// We "mount" our auth router at the '/api/auth' path
-// All routes in 'auth.js' will be prefixed with '/api/auth'
+// All your routes come AFTER the cors() middleware
 app.use('/api/auth', require('./routes/auth'));
-
-// (Later, we can add more routes)
-// app.use('/api/slots', require('./routes/slots'));
+app.use('/api/trainees', require('./routes/trainees'));
+app.use('/api/slots', require('./routes/slots'));
 
 // --- 5. Start Server ---
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
 });
-
-// --- 4. API Routes ---
-app.use('/api/auth', require('./routes/auth'));
-
-// Add this new line:
-app.use('/api/trainees', require('./routes/trainees'));

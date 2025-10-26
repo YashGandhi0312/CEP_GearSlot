@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import HomePage from './components/HomePage';
 import LoginPage from './components/LoginPage';
 import { TimeSlot, Trainee, BatchFilter, User } from './types';
-import { saveSlots, loadSlots, generateId } from './utils/storage';
 import SlotCard from './components/SlotCard';
 import CreateSlotModal from './components/CreateSlotModal';
 import FilterBar from './components/FilterBar';
@@ -16,22 +15,18 @@ function App() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [filter, setFilter] = useState<BatchFilter>({ availability: 'all' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+// Add this new useEffect
 
-
-  useEffect(() => {
-    if (isLoggedIn) {
-      saveSlots(slots);
-    }
-  }, [slots, isLoggedIn]);
-
-  const handleLogin = async (email: string, password: string) => {
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
+const handleLogin = async (email: string, password: string) => {
+  try {
+    const response = await fetch('http://localhost:5000/api/auth/login', {
+      method: 'POST',
+      headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -46,31 +41,112 @@ function App() {
       alert('Login failed. Is the backend server running?');
     }
   };
-
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setPage('home');
+  
+  
+// --- REPLACE OLD handleLogout WITH THIS ---
+  const handleLogout = async () => {
+    try {
+      // Tell the backend to clear the cookie
+      await fetch('http://localhost:5000/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    } finally {
+      // Always log out the frontend regardless of backend success
+      setIsLoggedIn(false);
+      setPage('home');
+    }
   };
-
-  const handleCreateSlot = (startTime: string, endTime: string, dayOfWeek: number) => {
-    const newSlot: TimeSlot = {
-      id: generateId(),
-      startTime,
-      endTime,
-      dayOfWeek,
-      trainees: [],
-      maxTrainees: 2,
-      createdAt: new Date()
-    };
-    
-    setSlots(prev => [...prev, newSlot].sort((a, b) => {
-      if (a.dayOfWeek !== b.dayOfWeek) {
-        return a.dayOfWeek - b.dayOfWeek;
+  // --- END OF REPLACEMENT ---
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/auth', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+        
+        if (response.ok) {
+          setIsLoggedIn(true);
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch (error) {
+        setIsLoggedIn(false);
+      } finally {
+        setIsLoading(false); // Done checking, show the app
       }
-      return a.startTime.localeCompare(b.startTime);
-    }));
-  };
+    };
+    checkAuth();
+  }, []); // The empty array [] means it runs only once
+
+useEffect(() => {
+  if (isLoggedIn) {
+    const fetchSlots = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/slots');
+        if (response.ok) {
+          const data = await response.json();
+          // --- FIX: Add this ---
+          const formattedSlots = data.map((slot: any) => ({
+            ...slot,
+            id: slot._id // Create the 'id' prop the frontend expects
+          }));
+          setSlots(formattedSlots);
+          // --- End of Fix ---
+        } else {
+          console.error('Failed to fetch slots');
+        }
+      } catch (error) {
+        console.error('Error fetching slots:', error);
+      }
+    };
+
+    fetchSlots();
+  }
+}, [isLoggedIn]); // It runs when isLoggedIn changes to true
+  
+  const handleCreateSlot = async (startTime: string, endTime: string, dayOfWeek: number) => {
+  try {
+    const response = await fetch('http://localhost:5000/api/slots', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        dayOfWeek,
+        startTime,
+        endTime,
+        maxTrainees: 2 // Or whatever default you want
+      }),
+    });
+
+    if (response.status === 201) {
+      const newSlotData = await response.json();
+      const newSlot = { ...newSlotData, id: newSlotData._id };
+      // Add the new slot to our local state so the UI updates instantly
+      setSlots(prev => [...prev, newSlot].sort((a, b) => {
+        if (a.dayOfWeek !== b.dayOfWeek) {
+          return a.dayOfWeek - b.dayOfWeek;
+        }
+        return a.startTime.localeCompare(b.startTime);
+      }));
+    } else {
+      console.error('Failed to create slot');
+      alert('Failed to create slot');
+    }
+  } catch (error) {
+    console.error('Error creating slot:', error);
+  }
+};
 
   const handleAddTrainee = (slotId: string, traineeData: Omit<Trainee, 'id' | 'assignedAt'>) => {
     setSlots(prev => prev.map(slot => {
@@ -98,11 +174,27 @@ function App() {
     }));
   };
 
-  const handleDeleteSlot = (slotId: string) => {
-    if (confirm('Are you sure you want to delete this slot? This action cannot be undone.')) {
-      setSlots(prev => prev.filter(slot => slot.id !== slotId));
+  // --- NEW DELETE FUNCTION ---
+  const handleDeleteSlot = async (slotId: string) => {
+    // This is the popup you asked for (using window.confirm)
+    if (window.confirm('Are you sure you want to remove this slot?')) {
+      try {
+        const response = await fetch(`http://localhost:5000/api/slots/${slotId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          // Because we fixed the 'id' prop, this filter now works
+          setSlots(prev => prev.filter(slot => slot.id !== slotId));
+        } else {
+          alert('Failed to delete slot.');
+        }
+      } catch (error) {
+        console.error('Error deleting slot:', error);
+      }
     }
   };
+  // --- End of new function ---
   
     const filteredSlots = useMemo(() => {
     return slots.filter(slot => {
@@ -120,7 +212,7 @@ function App() {
 
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
-        const hasMatchingTrainee = slot.trainees.some(trainee =>
+        const hasMatchingTrainee = slot.trainees.some((trainee: any) =>
           trainee.name.toLowerCase().includes(searchLower) ||
           trainee.phone.includes(searchTerm) ||
           (trainee.email && trainee.email.toLowerCase().includes(searchLower))
@@ -142,6 +234,12 @@ function App() {
     
     return { totalSlots, totalTrainees, availableSlots, fullSlots };
   }, [slots]);
+
+  // Show a blank loading screen while we check auth
+  if (isLoading) {
+    return <div className="min-h-screen bg-gray-50" />;
+  }
+
 
   if (!isLoggedIn) {
     if (page === 'login') {
