@@ -2,7 +2,6 @@ import { Car, LogIn } from 'lucide-react';
 
 interface HomePageProps {
   onShowLogin: () => void;
-  onShowRegister: () => void;
 }
 
 export default function HomePage({ onShowLogin }: HomePageProps) {

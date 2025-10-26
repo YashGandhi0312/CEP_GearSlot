@@ -3,10 +3,9 @@ import { LogIn } from 'lucide-react';
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => void;
-  onShowRegister: () => void;
 }
 
-export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
+export default function LoginPage({ onLogin, }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -48,12 +47,6 @@ export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
             Login
           </button>
         </form>
-        <p className="text-center text-sm text-gray-500 mt-4">
-          Don't have an account?{' '}
-          <button onClick={onShowRegister} className="text-blue-600 hover:underline">
-            Register
-          </button>
-        </p>
       </div>
     </div>
   );
