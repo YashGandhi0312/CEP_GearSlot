@@ -6,7 +6,9 @@ import SlotCard from './components/SlotCard';
 import CreateSlotModal from './components/CreateSlotModal';
 import FilterBar from './components/FilterBar';
 import StatsCard from './components/StatsCard';
-import { Plus, Car, LogOut } from 'lucide-react';
+import { Plus, Car, LogOut, Users } from 'lucide-react';
+import { Routes, Route, Link } from 'react-router-dom';
+import TraineePage from './components/TraineePage';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -16,7 +18,7 @@ function App() {
   const [filter, setFilter] = useState<BatchFilter>({ availability: 'all' });
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-// Add this new useEffect
+  const [allTrainees, setAllTrainees] = useState<Trainee[]>([]);
 
 const handleLogin = async (email: string, password: string) => {
   try {
@@ -94,14 +96,15 @@ useEffect(() => {
       try {
         const response = await fetch('http://localhost:5000/api/slots');
         if (response.ok) {
-          const data = await response.json();
-          // --- FIX: Add this ---
-          const formattedSlots = data.map((slot: any) => ({
-            ...slot,
-            id: slot._id // Create the 'id' prop the frontend expects
-          }));
-          setSlots(formattedSlots);
-          // --- End of Fix ---
+            const data = await response.json();
+            const formattedSlots = data.map((slot: any) => ({
+              ...slot,
+              id: slot._id, // Add id to the slot
+              // --- THIS IS THE FIX ---
+              // Also add id to each trainee *inside* the slot
+              trainees: slot.trainees.map((t: any) => ({ ...t, id: t._id }))
+            }));
+            setSlots(formattedSlots);
         } else {
           console.error('Failed to fetch slots');
         }
@@ -110,7 +113,30 @@ useEffect(() => {
       }
     };
 
+    const fetchTrainees = async () => {
+        try {
+          const response = await fetch('http://localhost:5000/api/trainees', {
+            credentials: 'include', // Important for auth
+          });
+          if (response.ok) {
+            const data = await response.json();
+            // --- FIX FOR TRAINEE ID ---
+            const formattedTrainees = data.map((trainee: any) => ({
+              ...trainee,
+              id: trainee._id // Add the 'id' prop here too
+            }));
+            setAllTrainees(formattedTrainees);
+          } else {
+            console.error('Failed to fetch trainees');
+          }
+        } catch (error) {
+          console.error('Error fetching trainees:', error);
+        }
+      };
+
+
     fetchSlots();
+    fetchTrainees();
   }
 }, [isLoggedIn]); // It runs when isLoggedIn changes to true
   
@@ -148,30 +174,71 @@ useEffect(() => {
   }
 };
 
-  const handleAddTrainee = (slotId: string, traineeData: Omit<Trainee, 'id' | 'assignedAt'>) => {
-    setSlots(prev => prev.map(slot => {
-      if (slot.id === slotId && slot.trainees.length < slot.maxTrainees) {
-        const newTrainee: Trainee = {
-          ...traineeData,
-          id: generateId(),
-          assignedAt: new Date()
-        };
-        return { ...slot, trainees: [...slot.trainees, newTrainee] };
+  // --- ADD THIS NEW FUNCTION ---
+  const handleAddTrainee = async (slotId: string, traineeId: string) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/slots/${slotId}/trainees`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ traineeId }),
+      });
+
+      if (response.ok) {
+        const updatedSlot = await response.json();
+        // Update the 'slots' state with the new slot data
+        setSlots(prevSlots => 
+          prevSlots.map(slot => 
+            slot.id === slotId ? { 
+              ...updatedSlot, 
+              id: updatedSlot._id, 
+              // --- THIS IS THE FIX ---
+              trainees: updatedSlot.trainees.map((t: any) => ({ ...t, id: t._id }))
+            } : slot
+          )
+        );
+      } else {
+        const data = await response.json();
+        alert(`Failed to add trainee: ${data.msg}`);
       }
-      return slot;
-    }));
+    } catch (error) {
+      console.error('Error adding trainee to slot:', error);
+    }
   };
 
-  const handleRemoveTrainee = (slotId: string, traineeId: string) => {
-    setSlots(prev => prev.map(slot => {
-      if (slot.id === slotId) {
-        return {
-          ...slot,
-          trainees: slot.trainees.filter(trainee => trainee.id !== traineeId)
-        };
+  // --- ADD THIS NEW FUNCTION ---
+  const handleRemoveTrainee = async (slotId: string, traineeId: string) => {
+    if (!window.confirm('Are you sure you want to remove this trainee from the slot?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/slots/${slotId}/trainees/${traineeId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const updatedSlot = await response.json();
+        // Update the 'slots' state with the new slot data
+        setSlots(prevSlots => 
+          prevSlots.map(slot => 
+            slot.id === slotId ? { 
+              ...updatedSlot, 
+              id: updatedSlot._id,
+              // --- THIS IS THE FIX ---
+              trainees: updatedSlot.trainees.map((t: any) => ({ ...t, id: t._id }))
+            } : slot
+          )
+        );
+      } else {
+        alert('Failed to remove trainee.');
       }
-      return slot;
-    }));
+    } catch (error) {
+      console.error('Error removing trainee from slot:', error);
+    }
   };
 
   // --- NEW DELETE FUNCTION ---
@@ -195,7 +262,52 @@ useEffect(() => {
     }
   };
   // --- End of new function ---
-  
+  // ... (after handleDeleteSlot)
+
+// --- ADD THIS FUNCTION ---
+const handleAddNewTrainee = async (newTrainee: Omit<Trainee, 'id' | 'createdAt'>) => {
+  try {
+    const response = await fetch('http://localhost:5000/api/trainees', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Send cookies
+      body: JSON.stringify(newTrainee),
+    });
+
+    if (response.status === 201) {
+      const addedTrainee = await response.json();
+      // Add the new trainee (with its DB _id) to our state
+      setAllTrainees(prev => [...prev, { ...addedTrainee, id: addedTrainee._id }]);
+    } else {
+      const data = await response.json();
+      alert(`Failed to add trainee: ${data.msg}`);
+    }
+  } catch (error) {
+    console.error('Error adding trainee:', error);
+  }
+};
+
+// --- AND ADD THIS FUNCTION ---
+const handleDeleteTrainee = async (traineeId: string) => {
+  try {
+    const response = await fetch(`http://localhost:5000/api/trainees/${traineeId}`, {
+      method: 'DELETE',
+      credentials: 'include', // Send cookies
+    });
+
+    if (response.ok) {
+      // Remove the trainee from our local state
+      setAllTrainees(prev => prev.filter(trainee => trainee.id !== traineeId));
+    } else {
+      alert('Failed to delete trainee.');
+    }
+  } catch (error) {
+    console.error('Error deleting trainee:', error);
+  }
+};
+
     const filteredSlots = useMemo(() => {
     return slots.filter(slot => {
       if (filter.day !== undefined && slot.dayOfWeek !== filter.day) {
@@ -272,6 +384,13 @@ useEffect(() => {
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Slot
               </button>
+              <Link
+                to="/trainees"
+                className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Manage Trainees
+              </Link>
               <button
                 onClick={handleLogout}
                 className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
@@ -283,26 +402,46 @@ useEffect(() => {
           </div>
         </div>
       </header>
+      {/* ... (your </header> tag) ... */}
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <StatsCard {...stats} />
-        <FilterBar filter={filter} onFilterChange={setFilter} searchTerm={searchTerm} onSearchChange={setSearchTerm} />
-        <div className="space-y-4 mt-6">
-          {filteredSlots.map(slot => (
-            <SlotCard
-              key={slot.id}
-              slot={slot}
-              onAddTrainee={handleAddTrainee}
-              onRemoveTrainee={handleRemoveTrainee}
-              onDeleteSlot={handleDeleteSlot}
-            />
-          ))}
-        </div>
+        <Routes>
+          {/* --- Route 1: The Main Dashboard --- */}
+          <Route path="/" element={
+            <>
+              <StatsCard {...stats} />
+              <FilterBar filter={filter} onFilterChange={setFilter} searchTerm={searchTerm} onSearchChange={setSearchTerm} />
+              <div className="space-y-4 mt-6">
+                {filteredSlots.map(slot => (
+                  <SlotCard
+                    key={slot.id}
+                    slot={slot}
+                    allTrainees={allTrainees} // <-- 1. ADD THIS PROP
+                    onAddTrainee={handleAddTrainee} // <-- 2. FIX THIS (remove arrow func)
+                    onRemoveTrainee={handleRemoveTrainee}
+                    onDeleteSlot={handleDeleteSlot}
+                  />
+                ))}
+              </div>
+            </>
+          } />
+
+          {/* --- Route 2: The New Trainees Page --- */}
+          <Route path="/trainees" element={
+                <TraineePage
+                  trainees={allTrainees}
+                  onAddTrainee={handleAddNewTrainee}
+                  onDeleteTrainee={handleDeleteTrainee}
+                />
+              } />
+          </Routes>
       </main>
       <CreateSlotModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreateSlot={handleCreateSlot}
       />
+
     </div>
   );
 }
