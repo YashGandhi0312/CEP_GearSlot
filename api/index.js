@@ -36,8 +36,5 @@ app.get('/test', (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/trainees', require('./routes/trainees'));
 app.use('/api/slots', require('./routes/slots'));
-
-// --- 5. Start Server ---
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
-});
+// --- 5. Export the app for Vercel ---
+module.exports = app;
