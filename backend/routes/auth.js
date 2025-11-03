@@ -24,7 +24,7 @@ const auth = require('../middleware/auth'); // <-- 1. IMPORT MIDDLEWARE
 
 //     const salt = await bcrypt.genSalt(10);
 //     user.password = await bcrypt.hash(password, salt);
-
+  
 //     await user.save();
 
 //     res.status(201).json({ msg: 'User registered successfully' });
