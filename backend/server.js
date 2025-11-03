@@ -29,6 +29,10 @@ app.use(cookieParser());
 
 // --- 4. API Routes ---
 // All your routes come AFTER the cors() middleware
+app.get('/test', (req, res) => {
+  res.send('Test route is working!');
+});
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/trainees', require('./routes/trainees'));
 app.use('/api/slots', require('./routes/slots'));
